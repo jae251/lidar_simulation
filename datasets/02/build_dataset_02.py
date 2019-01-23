@@ -41,7 +41,8 @@ def render_scene(n):
         scene.clear()
     return n
 
-pool=Pool(20)
+
+pool = Pool(20)
 pool.map(render_scene, range(100))
 
 t2 = time()

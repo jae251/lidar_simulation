@@ -2,6 +2,7 @@ import numpy as np
 from utilities.bounding_boxes import BoundingBox2D
 from utilities.geometry_calculations import rotate_point_cloud
 import matplotlib.pyplot as plt
+from shapely.geometry import Polygon
 
 
 class Scene:
@@ -14,8 +15,11 @@ class Scene:
     Lastly, use <build_scene> to create the new model.
     '''
 
-    def __init__(self, spawn_area_size=(20, 20)):
-        self.spawn_area_size = np.array(spawn_area_size)
+    def __init__(self, spawn_area=Polygon(((0, 0), (0, 20), (20, 20), (20, 0)))):
+        if spawn_area.is_valid:
+            self.spawn_area = spawn_area
+        else:
+            raise Exception("Spawn area polygon is not valid")
         self.model_boundaries = {}
         self.models = {}
         self.scene = []
@@ -24,18 +28,26 @@ class Scene:
         self.model_boundaries[label] = BoundingBox2D.from_point_cloud(vertices, label=label)
         self.models[label] = vertices, polygons
 
-    def place_object_randomly(self, label):  # if there is no space for an additional object, this runs forever
+    def place_object_randomly(self, label, max_nr_tries=200):
         obj_blueprint = self.model_boundaries[label]
-        while True:
-            new_obj = obj_blueprint.copy()
-            random_nr = np.random.uniform(0, 1, 3)
-            position = (random_nr[:2] - .5) * self.spawn_area_size
-            angle = 2 * np.pi * random_nr[2]
+        new_obj = obj_blueprint.copy()
+        if self.spawn_area.area < obj_blueprint.get_area():
+            return None
+        coords = np.array(self.spawn_area.exterior)
+        space_boundaries_min = np.min(coords, axis=0)
+        space_boundaries_max = np.max(coords, axis=0)
+        space_extent = space_boundaries_max - space_boundaries_min
+        for _ in range(max_nr_tries):
+            rnd = np.random.uniform(0, 1, 3)
+            position = space_boundaries_min + space_extent * rnd[:2]
+            angle = 2 * np.pi * rnd[2]
             new_obj.affine_transform(position, angle)
+            if not self.spawn_area.contains(new_obj.p):
+                continue
             if any((new_obj.overlaps(obj) for obj in self.scene)):
                 continue
+            self.scene.append(new_obj)
             break
-        self.scene.append(new_obj)
 
     def place_object(self, label, position, angle):  # angle in radians
         position = np.array(position)
@@ -87,7 +99,7 @@ def sample_usage():
     import pptk
     import os
 
-    scene = Scene(spawn_area_size=(20, 20))
+    scene = Scene(spawn_area=Polygon(((-10, -10), (-10, 10), (10, 10), (10, -10))))
     scene.add_model_to_shelf(*load_Porsche911(), "car")
     scene.add_model_to_shelf(*create_box(position=(0, 0, 2), size=(4, 6, 4)), "box")
     scene.add_model_to_shelf(*create_rectangle(position=(0, 0, 0), size=(25, 25)), "ground")
@@ -100,7 +112,7 @@ def sample_usage():
     scene.place_object("ground", position=(0, 0), angle=0)
 
     scene_vertices, scene_polygons = scene.build_scene()
-    path = os.path.join(os.path.dirname(__file__),
+    path = os.path.join(os.path.dirname(__file__), "tmp",
                         "scene_sample.png")
     scene.visualize(scene_vertices, path=path)
 
