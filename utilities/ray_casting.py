@@ -1,5 +1,5 @@
 import numpy as np
-from utilities.geometry_calculations import support_vector_representation
+from lidar_simulation.utilities.geometry_calculations import support_vector_representation
 
 
 def ray_intersection(ray_origin, ray_direction, vertices, polygons):

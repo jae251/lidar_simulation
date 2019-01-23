@@ -1,7 +1,7 @@
 import numpy as np
 from shapely.geometry import Polygon
 from shapely.affinity import translate, rotate
-from utilities.geometry_calculations import rotate_point_cloud
+from lidar_simulation.utilities.geometry_calculations import rotate_point_cloud
 
 
 class BoundingBox2D:

@@ -1,5 +1,5 @@
 import numpy as np
-from utilities.ray_casting import ray_intersection
+from lidar_simulation.utilities.ray_casting import ray_intersection
 
 
 class Lidar:
