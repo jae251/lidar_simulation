@@ -29,8 +29,8 @@ def check_inside_polygon(point, edge_base, edge, normal):
 
 ########################################################################################################################
 def sample_usage():
-    from data_loaders.load_3d_models import load_Porsche911
-    from lidar import Lidar
+    from lidar_simulation.data_loaders.load_3d_models import load_Porsche911
+    from lidar_simulation.lidar import Lidar
     vertices, polygons = load_Porsche911()
     ray_origin, ray_direction = Lidar(delta_azimuth=2 * np.pi / 2000,
                                       delta_elevation=np.pi / 500,
@@ -54,19 +54,19 @@ def sample_usage():
 def sample_usage2():
     vertices = np.array([[0, -1, -1], [0, 1, -1], [0, 0, 1]])
     polygons = np.array((0, 1, 2)).reshape(1, 3)
-    from lidar import Lidar
+    from lidar_simulation.lidar import Lidar
     ray_origin, ray_direction = Lidar(position=(10, 0, 0)).create_rays(vertices)
     point_cloud = ray_intersection(ray_origin, ray_direction, vertices, polygons)
     print(len(point_cloud))
 
-    from utilities.visualization import visualize_2d
+    from lidar_simulation.utilities.visualization import visualize_2d
     visualize_2d(point_cloud)
     visualize_2d(point_cloud, plane=(0, 2))
     visualize_2d(point_cloud, plane=(1, 2))
 
 
 def sample_usage3():
-    from data_loaders.create_test_data import create_box
+    from lidar_simulation.data_loaders.create_test_data import create_box
 
     vertices, polygons = create_box()
     ray_origin = (10, 0, 0)
@@ -76,7 +76,7 @@ def sample_usage3():
     point_cloud = ray_intersection(ray_origin, ray_direction, vertices, polygons)
     print(len(point_cloud))
 
-    from utilities.visualization import visualize_3d
+    from lidar_simulation.utilities.visualization import visualize_3d
     visualize_3d(point_cloud)
     # visualize_3d(vertices)
 
