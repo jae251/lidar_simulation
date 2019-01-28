@@ -48,7 +48,7 @@ def load_Porsche911():
 
 if __name__ == "__main__":
     vertices, polygons = load_Porsche911()
-    from utilities.visualization import visualize_2d
+    from lidar_simulation.utilities.visualization import visualize_2d
 
     visualize_2d(vertices)
     visualize_2d(vertices, plane=(0, 2))
