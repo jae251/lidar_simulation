@@ -5,11 +5,11 @@ from lidar_simulation.utilities.geometry_calculations import rotate_point_cloud
 
 
 class BoundingBox2D:
-    def __init__(self, point_array, label=None, id=None, angle=0, position=(0, 0)):
+    def __init__(self, point_array, label=None, id=None, angle=0, position=(0, 0, 0)):
         self.p = Polygon(point_array)
         self.points = point_array
         self.angle = angle
-        self.position = position
+        self.position = np.array(position)
         self.label = label
         self.id = id
 
@@ -24,7 +24,8 @@ class BoundingBox2D:
                                 (lower_boundary[0], lower_boundary[1]),
                                 (lower_boundary[0], upper_boundary[1])))
         point_array = rotate_point_cloud(point_array, angle)
-        return cls(point_array, label=label, id=id, angle=angle)
+        position = np.zeros(3)
+        return cls(point_array, label=label, id=id, angle=angle, position=position)
 
     def get_size(self):
         return np.linalg.norm(self.points - np.roll(self.points, 1, axis=0), axis=1)[:2]
@@ -43,7 +44,7 @@ class BoundingBox2D:
         return self.p.intersects(other_bounding_box.p)
 
     def affine_transform(self, translation, angle):
-        self.p = translate(rotate(self.p, angle * 180 / np.pi), *translation)
+        self.p = translate(rotate(self.p, angle * 180 / np.pi), translation[0],translation[1])
         self.points = np.dstack(self.p.exterior.coords.xy)[0, :4]
         self.angle += angle
         self.position += translation
@@ -62,7 +63,7 @@ class BoundingBox2D:
                          self.angle), dtype=np.dtype([#("id", np.uint8),
                                                       ("label", "S20"),
                                                       ("points", (np.float64, (4, 2))),
-                                                      ("position", (np.float64, 2)),
+                                                      ("position", (np.float64, 3)),
                                                       ("angle", np.float64)]))
 
 

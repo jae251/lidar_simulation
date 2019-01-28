@@ -40,6 +40,7 @@ class Scene:
         for _ in range(max_nr_tries):
             rnd = np.random.uniform(0, 1, 3)
             position = space_boundaries_min + space_extent * rnd[:2]
+            position = np.array((position[0], position[1], 0))
             angle = 2 * np.pi * rnd[2]
             new_obj.affine_transform(position, angle)
             if not self.spawn_area.contains(new_obj.p):
@@ -62,7 +63,7 @@ class Scene:
         for obj in self.scene:
             vertices, polygons = self.models[obj.label]
             vertices = rotate_point_cloud(vertices, obj.angle)
-            vertices[:, :2] += obj.position
+            vertices += obj.position
             scene_vertices.append(vertices)
             scene_polygons.append(polygons + polygon_count)
             polygon_count += len(vertices)
