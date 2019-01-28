@@ -44,26 +44,43 @@ class Lidar:
         ray_directions = self._tf_into_cartesian_coordinates(rays_spherical)
         return self.position, ray_directions
 
-    def sample_3d_model(self, vertices, polygons, rays_per_cycle=None):
+    def sample_3d_model(self, vertices, polygons, rays_per_cycle=None, return_valid_ray_mask=False):
         '''
         Simulate lidar sensor measurement on a 3d model
         :param  vertices: np.array with x,y,z as columns (shape= n x 3)
                 polygons: np.array with vertex indices for each polygon (shape= p x 3),
                           assumes 3-point-polygons
+                rays_per_cycle: Setting this parameter limits the amount of rays that are computed at once
+                                for limiting memory usage
+                return_valid_ray_mask: if True the function returns a boolean mask for which ray hit a polygon
         :return: Measured vertices (shape= m x 3)
+                 Mask of rays that hit
         '''
         ray_origin, ray_directions = self.create_rays(vertices)
         if rays_per_cycle is None:
-            sampled_points = ray_intersection(ray_origin, ray_directions, vertices, polygons)
+            sampled_points, all_valid_rays = ray_intersection(ray_origin,
+                                                              ray_directions,
+                                                              vertices,
+                                                              polygons)
         else:
             cycles = int(np.ceil(len(ray_directions) / rays_per_cycle))
             sampled_points = []
+            all_valid_rays = []
             for c in range(cycles):
                 idx = c * rays_per_cycle
-                sampled_points.append(
-                    ray_intersection(ray_origin, ray_directions[idx:idx + rays_per_cycle], vertices, polygons))
+                lidar_points, valid_ray = ray_intersection(ray_origin,
+                                                           ray_directions[idx:idx + rays_per_cycle],
+                                                           vertices,
+                                                           polygons)
+                sampled_points.append(lidar_points)
+                all_valid_rays.append(valid_ray)
             sampled_points = np.vstack(sampled_points)
-        return sampled_points
+            all_valid_rays = np.hstack(all_valid_rays)
+
+        if return_valid_ray_mask:
+            return sampled_points, all_valid_rays
+        else:
+            return sampled_points
 
 
 ########################################################################################################################

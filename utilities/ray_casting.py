@@ -16,9 +16,9 @@ def ray_intersection(ray_origin, ray_direction, vertices, polygons):
     inside_polygon *= check_inside_polygon(ray_hit, pos + v1, v2 - v1, normals)
 
     closest_hit = np.argmin(np.abs(np.ma.masked_array(ray_hit_distance, np.logical_not(inside_polygon))), axis=1)
-    valid_ray = np.where(np.any(inside_polygon, axis=1))
-    point_cloud = ray_hit[valid_ray, closest_hit[valid_ray]][0]
-    return point_cloud
+    valid_ray = np.any(inside_polygon, axis=1)
+    point_cloud = ray_hit[np.where(valid_ray), closest_hit[valid_ray]][0]
+    return point_cloud, valid_ray
 
 
 def check_inside_polygon(point, edge_base, edge, normal):
