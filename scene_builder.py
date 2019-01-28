@@ -48,7 +48,8 @@ class Scene:
             if any((new_obj.overlaps(obj) for obj in self.scene)):
                 continue
             self.scene.append(new_obj)
-            break
+            return True
+        return None
 
     def place_object(self, label, position, angle):  # angle in radians
         position = np.array(position)
@@ -67,8 +68,11 @@ class Scene:
             scene_vertices.append(vertices)
             scene_polygons.append(polygons + polygon_count)
             polygon_count += len(vertices)
-        scene_vertices = np.vstack(scene_vertices)
-        scene_polygons = np.vstack(scene_polygons)
+        try:
+            scene_vertices = np.vstack(scene_vertices)
+            scene_polygons = np.vstack(scene_polygons)
+        except ValueError:
+            pass
         return scene_vertices, scene_polygons
 
     def get_bounding_boxes(self):
