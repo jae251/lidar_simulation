@@ -1,37 +1,44 @@
 import numpy as np
 from lidar_simulation.utilities.geometry_calculations import support_vector_representation
 from numba import cuda, float64
-from math import sqrt
+from math import inf
 
 
-@cuda.jit
+@cuda.jit(debug=True)
 def ray_intersection_gpu(ray_origin, ray_direction, vertices, polygons, point_cloud):
     i = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
+    point_cloud[i, 2] = 1
     ray_hit = cuda.local.array(3, float64)
-    closest_hit_distance = 1000
+    closest_hit_distance = inf  # 1000
     for n in range(len(polygons)):
         pos = vertices[polygons[n, 0]]
-        v1 = vertices[polygons[n, 1]]
-        v2 = vertices[polygons[n, 2]]
-        v1[0] -= pos[0]
-        v1[1] -= pos[1]
-        v1[2] -= pos[2]
-        v2[0] -= pos[0]
-        v2[1] -= pos[1]
-        v2[2] -= pos[2]
+        v1_ = vertices[polygons[n, 1]]
+        v2_ = vertices[polygons[n, 2]]
+        v1 = cuda.local.array(3, float64)
+        v2 = cuda.local.array(3, float64)
+        v1[0] = v1_[0] - pos[0]
+        v1[1] = v1_[1] - pos[1]
+        v1[2] = v1_[2] - pos[2]
+        v2[0] = v2_[0] - pos[0]
+        v2[1] = v2_[1] - pos[1]
+        v2[2] = v2_[2] - pos[2]
 
         normal = cuda.local.array(3, float64)
         normal[0] = v1[1] * v2[2] - v1[2] * v2[1]
         normal[1] = v1[2] * v2[0] - v1[0] * v2[2]
         normal[2] = v1[0] * v2[1] - v1[1] * v2[0]
 
-        plane_ray_origin_distance = (pos[0] - ray_origin[0]) * normal[0] + \
-                                    (pos[1] - ray_origin[1]) * normal[1] + \
-                                    (pos[2] - ray_origin[2]) * normal[2]
+        ray_plane_distance = ray_direction[i, 0] * normal[0] + \
+                             ray_direction[i, 1] * normal[1] + \
+                             ray_direction[i, 2] * normal[2]
 
-        ray_hit_distance = plane_ray_origin_distance / (ray_direction[i, 0] * normal[0] +
-                                                        ray_direction[i, 1] * normal[1] +
-                                                        ray_direction[i, 2] * normal[2])
+        if ray_plane_distance == 0:
+            continue
+
+        ray_hit_distance = ((pos[0] - ray_origin[0]) * normal[0] +
+                            (pos[1] - ray_origin[1]) * normal[1] +
+                            (pos[2] - ray_origin[2]) * normal[2]) / ray_plane_distance
+
         ray_hit[0] = ray_direction[i, 0] * ray_hit_distance + ray_origin[0]
         ray_hit[1] = ray_direction[i, 1] * ray_hit_distance + ray_origin[1]
         ray_hit[2] = ray_direction[i, 2] * ray_hit_distance + ray_origin[2]
@@ -47,20 +54,19 @@ def ray_intersection_gpu(ray_origin, ray_direction, vertices, polygons, point_cl
                           ((v2[0] - v1[0]) * normal[1] - v1[1] * normal[0]) * (ray_hit[2] - pos[2] - v1[2]) <= 0
 
         if inside_polygon:
-            if ray_hit_distance < closest_hit_distance:
-                closest_hit_distance = ray_hit_distance
+            abs_ray_hit_distance = abs(ray_hit_distance)
+            if abs_ray_hit_distance < closest_hit_distance:
+                closest_hit_distance = abs_ray_hit_distance
                 point_cloud[i, 0] = ray_hit[0]
                 point_cloud[i, 1] = ray_hit[1]
                 point_cloud[i, 2] = ray_hit[2]
 
-        # from lidar_simulation.data_loaders.load_3d_models import load_Porsche911
-        #
-        # ray_origin = np.zeros(3)
-        # ray_direction = np.random.uniform(0, 1, (10, 3))
-        # vertices, polygons = load_Porsche911()
-        # point_cloud = np.zeros((len(ray_direction), 3))
-        # ray_intersection(ray_origin, ray_direction, vertices, polygons, point_cloud)
-        # quit()
+
+@cuda.jit(device=True)
+def cross(a, b, c):
+    c[0] = a[1] * b[2] - a[2] * b[1]
+    c[1] = a[2] * b[0] - a[0] * b[2]
+    c[2] = a[0] * b[1] - a[1] * b[0]
 
 
 def ray_intersection(ray_origin, ray_direction, vertices, polygons):
