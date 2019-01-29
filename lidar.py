@@ -9,7 +9,7 @@ class Lidar:
     def __init__(self, delta_azimuth=2 * np.pi / 4000, delta_elevation=np.pi / 128, position=(0, 0, 0)):
         self.delta_azimuth = delta_azimuth
         self.delta_elevation = delta_elevation
-        self.position = position
+        self.position = np.array(position)
 
     def _tf_into_spherical_sensor_coordinates(self, points):
         pc_tmp = points - self.position
@@ -127,12 +127,15 @@ def sample_usage_gpu():
     from data_loaders.load_3d_models import load_Porsche911
 
     point_cloud = Lidar(delta_azimuth=2 * np.pi / 2000,
-                        delta_elevation=np.pi / 500,
-                        position=np.array((0, -10, 0))).sample_3d_model_gpu(*load_Porsche911())
+                        delta_elevation=np.pi / 800,
+                        position=(0, -10, 0)).sample_3d_model_gpu(*load_Porsche911())
     print(point_cloud)
-    # visualize_3d(point_cloud)
+    print(len(point_cloud))
+    print(np.sum(point_cloud[:, 2]))
+
     import pptk
-    v = pptk.viewer(point_cloud[np.any(point_cloud!=0)])
+    v = pptk.viewer(point_cloud[np.any(point_cloud != 0)])
+    v.set(point_size=.003)
 
 
 if __name__ == "__main__":
