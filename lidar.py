@@ -1,5 +1,8 @@
 import numpy as np
-from lidar_simulation.utilities.ray_casting import ray_intersection
+from lidar_simulation.utilities.visualization import visualize_3d
+from lidar_simulation.utilities.ray_casting import ray_intersection, ray_intersection_gpu
+from numba import cuda
+from math import ceil
 
 
 class Lidar:
@@ -82,19 +85,55 @@ class Lidar:
         else:
             return sampled_points
 
+    def sample_3d_model_gpu(self, vertices, polygons):
+        '''
+        Simulate lidar sensor measurement on a 3d model
+        :param  vertices: np.array with x,y,z as columns (shape= n x 3)
+                polygons: np.array with vertex indices for each polygon (shape= p x 3),
+                          assumes 3-point-polygons
+                rays_per_cycle: Setting this parameter limits the amount of rays that are computed at once
+                                for limiting memory usage
+                return_valid_ray_mask: if True the function returns a boolean mask for which ray hit a polygon
+        :return: Measured vertices (shape= m x 3)
+                 Mask of rays that hit
+        '''
+        ray_origin, ray_directions = self.create_rays(vertices)
+        sampled_points = np.zeros((len(ray_directions), 3))
+        ray_intersection_gpu[ceil(len(ray_directions) / 256), 256](ray_origin,
+                                                                   ray_directions,
+                                                                   vertices,
+                                                                   polygons,
+                                                                   sampled_points)
+        cuda.synchronize()
+        return sampled_points
+
 
 ########################################################################################################################
 
 def sample_usage():
     from data_loaders.load_3d_models import load_Porsche911
-    from utilities.visualization import visualize_3d
+    # from utilities.visualization import visualize_3d
+
+    point_cloud = Lidar(delta_azimuth=2 * np.pi / 2000,
+                        delta_elevation=np.pi / 200,
+                        position=(0, -10, 0)).sample_3d_model(*load_Porsche911(), rays_per_cycle=400)
+    print(point_cloud)
+    # visualize_3d(point_cloud)
+    import pptk
+    v = pptk.viewer(point_cloud)
+
+
+def sample_usage_gpu():
+    from data_loaders.load_3d_models import load_Porsche911
 
     point_cloud = Lidar(delta_azimuth=2 * np.pi / 2000,
                         delta_elevation=np.pi / 500,
-                        position=(0, -10, 0)).sample_3d_model(*load_Porsche911(), rays_per_cycle=400)
+                        position=np.array((0, -10, 0))).sample_3d_model_gpu(*load_Porsche911())
     print(point_cloud)
-    visualize_3d(point_cloud)
+    # visualize_3d(point_cloud)
+    import pptk
+    v = pptk.viewer(point_cloud[np.any(point_cloud!=0)])
 
 
 if __name__ == "__main__":
-    sample_usage()
+    sample_usage_gpu()
