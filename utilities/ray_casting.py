@@ -10,6 +10,9 @@ def ray_intersection_gpu(ray_origin, ray_direction, vertices, polygons, point_cl
     point_cloud[i, 2] = 1
     ray_hit = cuda.local.array(3, float64)
     closest_ray_hit = cuda.local.array(3, float64)
+    closest_ray_hit[0] = 0
+    closest_ray_hit[1] = 0
+    closest_ray_hit[2] = 0
     closest_hit_distance = inf
     for n in range(len(polygons)):
         pos = vertices[polygons[n, 0]]
@@ -64,13 +67,6 @@ def ray_intersection_gpu(ray_origin, ray_direction, vertices, polygons, point_cl
     point_cloud[i, 0] = closest_ray_hit[0]
     point_cloud[i, 1] = closest_ray_hit[1]
     point_cloud[i, 2] = closest_ray_hit[2]
-
-
-# @cuda.jit(device=True)
-# def cross(a, b, c):
-#     c[0] = a[1] * b[2] - a[2] * b[1]
-#     c[1] = a[2] * b[0] - a[0] * b[2]
-#     c[2] = a[0] * b[1] - a[1] * b[0]
 
 
 def ray_intersection(ray_origin, ray_direction, vertices, polygons):
