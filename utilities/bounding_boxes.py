@@ -28,7 +28,9 @@ class BoundingBox2D:
         return cls(point_array, label=label, id=id, angle=angle, position=position)
 
     def get_size(self):
-        return np.linalg.norm(self.points - np.roll(self.points, 1, axis=0), axis=1)[:2]
+        dim = np.linalg.norm(self.points - np.roll(self.points, 1, axis=0), axis=1)[:2]
+        dim[::-1].sort() # put higher value first
+        return dim
 
     def get_area(self):
         size = self.get_size()
