@@ -91,11 +91,7 @@ class Lidar:
         :param  vertices: np.array with x,y,z as columns (shape= n x 3)
                 polygons: np.array with vertex indices for each polygon (shape= p x 3),
                           assumes 3-point-polygons
-                rays_per_cycle: Setting this parameter limits the amount of rays that are computed at once
-                                for limiting memory usage
-                return_valid_ray_mask: if True the function returns a boolean mask for which ray hit a polygon
-        :return: Measured vertices (shape= m x 3)
-                 Mask of rays that hit
+        :return: Measured vertices (shape= m x 3). returns (0,0,0) in place of each invalid ray.
         '''
         ray_origin, ray_directions = self.create_rays(vertices)
         sampled_points = np.zeros((len(ray_directions), 3))
@@ -125,10 +121,13 @@ def sample_usage():
 
 def sample_usage_gpu():
     from data_loaders.load_3d_models import load_Porsche911
+    from lidar_simulation.utilities.geometry_calculations import rotate_point_cloud
 
-    point_cloud = Lidar(delta_azimuth=2 * np.pi / 2000,
+    vertices, polygons = load_Porsche911()
+    vertices = rotate_point_cloud(vertices, -.5)
+    point_cloud = Lidar(delta_azimuth=2 * np.pi / 3000,
                         delta_elevation=np.pi / 800,
-                        position=(0, -10, 0)).sample_3d_model_gpu(*load_Porsche911())
+                        position=(0, -10, 1)).sample_3d_model_gpu(vertices, polygons)
     print(point_cloud)
     print(len(point_cloud))
     print(np.sum(point_cloud[:, 2]))

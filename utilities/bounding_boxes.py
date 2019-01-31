@@ -76,5 +76,5 @@ if __name__ == "__main__":
     print(bb.get_area())
     print(bb.intersection_over_union(bb))
     print(bb.overlaps(bb))
-    print(bb.affine_transform((1, 1), 90))
+    print(bb.affine_transform((1, 1, 0), 90))
     print(bb.copy())
