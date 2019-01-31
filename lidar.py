@@ -1,6 +1,6 @@
 import numpy as np
-from lidar_simulation.utilities.visualization import visualize_3d
-from lidar_simulation.utilities.ray_casting import ray_intersection, ray_intersection_gpu
+from utilities.visualization import visualize_3d
+from utilities.ray_casting import ray_intersection, ray_intersection_gpu
 from numba import cuda
 from math import ceil
 
@@ -121,7 +121,7 @@ def sample_usage():
 
 def sample_usage_gpu():
     from data_loaders.load_3d_models import load_Porsche911
-    from lidar_simulation.utilities.geometry_calculations import rotate_point_cloud
+    from utilities.geometry_calculations import rotate_point_cloud
 
     vertices, polygons = load_Porsche911()
     vertices = rotate_point_cloud(vertices, -.5)
