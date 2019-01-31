@@ -1,7 +1,11 @@
 import numpy as np
 from shapely.geometry import Polygon
 from shapely.affinity import translate, rotate
-from utilities.geometry_calculations import rotate_point_cloud
+
+try:
+    from .geometry_calculations import rotate_point_cloud
+except ImportError:
+    from utilities.geometry_calculations import rotate_point_cloud
 
 
 class BoundingBox2D:
@@ -29,7 +33,7 @@ class BoundingBox2D:
 
     def get_size(self):
         dim = np.linalg.norm(self.points - np.roll(self.points, 1, axis=0), axis=1)[:2]
-        dim[::-1].sort() # put higher value first
+        dim[::-1].sort()  # put higher value first
         return dim
 
     def get_area(self):
@@ -46,7 +50,7 @@ class BoundingBox2D:
         return self.p.intersects(other_bounding_box.p)
 
     def affine_transform(self, translation, angle):
-        self.p = translate(rotate(self.p, angle * 180 / np.pi), translation[0],translation[1])
+        self.p = translate(rotate(self.p, angle * 180 / np.pi), translation[0], translation[1])
         self.points = np.dstack(self.p.exterior.coords.xy)[0, :4]
         self.angle += angle
         self.position += translation
@@ -58,15 +62,15 @@ class BoundingBox2D:
         return "2D Bounding Box:\nid: {}\nlabel: {}\npoints:\n{}".format(self.id, self.label, self.points)
 
     def to_numpy(self):
-        return np.array((#self.id,
-                         self.label,
-                         self.points,
-                         self.position,
-                         self.angle), dtype=np.dtype([#("id", np.uint8),
-                                                      ("label", "S20"),
-                                                      ("points", (np.float64, (4, 2))),
-                                                      ("position", (np.float64, 3)),
-                                                      ("angle", np.float64)]))
+        return np.array((  # self.id,
+            self.label,
+            self.points,
+            self.position,
+            self.angle), dtype=np.dtype([  # ("id", np.uint8),
+            ("label", "S20"),
+            ("points", (np.float64, (4, 2))),
+            ("position", (np.float64, 3)),
+            ("angle", np.float64)]))
 
 
 ########################################################################################################################

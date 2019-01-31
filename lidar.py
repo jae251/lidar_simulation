@@ -1,8 +1,13 @@
 import numpy as np
-from utilities.visualization import visualize_3d
-from utilities.ray_casting import ray_intersection, ray_intersection_gpu
 from numba import cuda
 from math import ceil
+
+try:
+    from .utilities.visualization import visualize_3d
+    from .utilities.ray_casting import ray_intersection, ray_intersection_gpu
+except ImportError:
+    from utilities.visualization import visualize_3d
+    from utilities.ray_casting import ray_intersection, ray_intersection_gpu
 
 
 class Lidar:

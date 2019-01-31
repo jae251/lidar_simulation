@@ -1,7 +1,10 @@
 import numpy as np
-from utilities.geometry_calculations import support_vector_representation
 from numba import cuda, float64
 from math import inf
+try:
+    from .geometry_calculations import support_vector_representation
+except ImportError:
+    from utilities.geometry_calculations import support_vector_representation
 
 
 @cuda.jit

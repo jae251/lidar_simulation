@@ -1,8 +1,13 @@
 import numpy as np
-from utilities.bounding_boxes import BoundingBox2D
-from utilities.geometry_calculations import rotate_point_cloud
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
+
+try:
+    from .utilities.bounding_boxes import BoundingBox2D
+    from .utilities.geometry_calculations import rotate_point_cloud
+except ImportError:
+    from utilities.bounding_boxes import BoundingBox2D
+    from utilities.geometry_calculations import rotate_point_cloud
 
 
 class Scene:
