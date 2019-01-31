@@ -1,6 +1,6 @@
 import numpy as np
-from lidar_simulation.utilities.bounding_boxes import BoundingBox2D
-from lidar_simulation.utilities.geometry_calculations import rotate_point_cloud
+from utilities.bounding_boxes import BoundingBox2D
+from utilities.geometry_calculations import rotate_point_cloud
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
 

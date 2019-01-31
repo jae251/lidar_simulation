@@ -1,8 +1,8 @@
-from lidar_simulation.scene_builder import Scene
+from scene_builder import Scene
 import numpy as np
 from lidar import Lidar
-from lidar_simulation.data_loaders.load_3d_models import load_Porsche911
-from lidar_simulation.data_loaders.create_test_data import create_box, create_rectangle
+from data_loaders.load_3d_models import load_Porsche911
+from data_loaders.create_test_data import create_box, create_rectangle
 from h5py import File
 import os
 from time import time
