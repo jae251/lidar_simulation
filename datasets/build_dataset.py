@@ -28,8 +28,7 @@ def render_scene(n):
 
         scene_vertices, scene_polygons = scene.build_scene()
 
-        path = os.path.join(os.path.dirname(__file__),
-                            "{:>02}.png".format(n))
+        path = os.path.join(os.path.dirname(__file__), "{:>02}.png".format(n))
         scene.visualize(scene_vertices, path)
         point_cloud = Lidar(delta_azimuth=2 * np.pi / 4000,
                             delta_elevation=np.pi / 500,
