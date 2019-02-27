@@ -65,6 +65,9 @@ scene.place_object("ground", position=(0, 0, 0), angle=0)
 
 # Compose the scene. Only now are all vertices and polygons of the scene generated.
 scene_vertices, scene_polygons = scene.build_scene()
+
+# Get label data from scene
+bounding_box_data = scene.get_bounding_boxes()
 ```
 
 ### Building training data sets
