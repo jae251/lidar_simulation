@@ -1,8 +1,13 @@
 import numpy as np
-from lidar_simulation.utilities.bounding_boxes import BoundingBox2D
-from lidar_simulation.utilities.geometry_calculations import rotate_point_cloud
 import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
+
+try:
+    from .utilities.bounding_boxes import BoundingBox2D
+    from .utilities.geometry_calculations import rotate_point_cloud
+except ImportError:
+    from utilities.bounding_boxes import BoundingBox2D
+    from utilities.geometry_calculations import rotate_point_cloud
 
 
 class Scene:
@@ -114,19 +119,22 @@ def sample_usage():
     scene.place_object_randomly("car")
     scene.place_object_randomly("box")
     scene.place_object_randomly("box")
-    scene.place_object("ground", position=(0, 0), angle=0)
+    scene.place_object("ground", position=(0, 0, 0), angle=0)
 
     scene_vertices, scene_polygons = scene.build_scene()
     path = os.path.join(os.path.dirname(__file__), "tmp",
                         "scene_sample.png")
     scene.visualize(scene_vertices, path=path)
 
+    # point_cloud = Lidar(delta_azimuth=2 * np.pi / 4000,
+    #                     delta_elevation=np.pi / 500,
+    #                     position=(0, -40, 1)).sample_3d_model(scene_vertices,
+    #                                                           scene_polygons,
+    #                                                           rays_per_cycle=400)
     point_cloud = Lidar(delta_azimuth=2 * np.pi / 4000,
-                        delta_elevation=np.pi / 500,
-                        position=(0, -40, 1)).sample_3d_model(scene_vertices,
-                                                              scene_polygons,
-                                                              rays_per_cycle=400)
-
+                        delta_elevation=np.pi / 1000,
+                        position=(0, -40, 1)).sample_3d_model_gpu(scene_vertices,
+                                                                  scene_polygons)
     v = pptk.viewer(point_cloud)
     v.set(point_size=.01)
 

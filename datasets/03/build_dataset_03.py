@@ -10,7 +10,7 @@ from multiprocessing import Pool
 
 t1 = time()
 
-scene = Scene(spawn_area_size=(20, 20))
+scene = Scene()
 scene.add_model_to_shelf(*load_Porsche911(), "car")
 scene.add_model_to_shelf(*create_box(position=(0, 0, 2), size=(4, 6, 4)), "box")
 scene.add_model_to_shelf(*create_rectangle(position=(0, 0, 0), size=(25, 25)), "ground")
@@ -24,7 +24,7 @@ def render_scene(n):
         scene.place_object_randomly("car")
         scene.place_object_randomly("box")
         scene.place_object_randomly("box")
-        scene.place_object("ground", position=(0, 0), angle=0)
+        scene.place_object("ground", position=(0, 0, 0), angle=0)
 
         scene_vertices, scene_polygons = scene.build_scene()
 
@@ -33,13 +33,11 @@ def render_scene(n):
         scene.visualize(scene_vertices, path)
         point_cloud = Lidar(delta_azimuth=2 * np.pi / 4000,
                             delta_elevation=np.pi / 500,
-                            position=(0, -40, 1)).sample_3d_model(scene_vertices,
-                                                                  scene_polygons,
-                                                                  rays_per_cycle=400)
+                            position=(0, -40, 1)).sample_3d_model_gpu(scene_vertices,
+                                                                      scene_polygons)
         hdf.create_dataset("point_cloud", data=point_cloud)
         hdf.create_dataset("bounding_boxes", data=scene.get_bounding_boxes())
         scene.clear()
-    return n
 
 
 pool = Pool(20)
