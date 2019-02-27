@@ -66,3 +66,12 @@ scene.place_object("ground", position=(0, 0, 0), angle=0)
 # Compose the scene. Only now are all vertices and polygons of the scene generated.
 scene_vertices, scene_polygons = scene.build_scene()
 ```
+
+### Building training data sets
+
+```bash
+python datasets/build_datset.py
+```
+This script is an exemplary way of producing training data and should be adapted to your needs.
+At the moment scenes with three identical cars and two generic boxes are generated, which are placed randomly
+inside a square with the size of 25 meters.

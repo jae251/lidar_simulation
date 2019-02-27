@@ -40,7 +40,7 @@ def render_scene(n):
         scene.clear()
 
 
-pool = Pool(20)
+pool = Pool()
 pool.map(render_scene, range(100))
 
 t2 = time()
