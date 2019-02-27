@@ -35,3 +35,34 @@ point_cloud = Lidar(delta_azimuth=2 * np.pi / 2000,
                     position=(0, -10, 0)).sample_3d_model_gpu(vertices, polygons)
 ```
 
+### The "Scene" class (in "scene_builder.py")
+
+This class provides a way to easily compose random scenes from a set of 3d objects.
+The following code produced the scene from above:
+```python
+from scene_builder import Scene
+from data_loaders.load_3d_models import load_Porsche911
+from data_loaders.create_test_data import create_box, create_rectangle
+from shapely.geometry import Polygon
+
+scene = Scene(spawn_area=Polygon(((-10, -10), (-10, 10), (10, 10), (10, -10))))
+
+# Give the scene object the models it can work with and register them with a name string
+scene.add_model_to_shelf(*load_Porsche911(), "car")
+scene.add_model_to_shelf(*create_box(position=(0, 0, 2), size=(4, 6, 4)), "box")
+scene.add_model_to_shelf(*create_rectangle(position=(0, 0, 0), size=(25, 25)), "ground")
+
+# Each call places an object randomly into the scene without intersecting existing objects.
+# For this purpose, placed objects are represented by a rectangle in 2d space.
+scene.place_object_randomly("car")
+scene.place_object_randomly("car")
+scene.place_object_randomly("car")
+scene.place_object_randomly("box")
+scene.place_object_randomly("box")
+
+# place the basic ground object at nonrandom location 
+scene.place_object("ground", position=(0, 0, 0), angle=0)
+
+# Compose the scene. Only now are all vertices and polygons of the scene generated.
+scene_vertices, scene_polygons = scene.build_scene()
+```
