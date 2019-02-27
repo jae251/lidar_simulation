@@ -108,6 +108,26 @@ class Lidar:
         cuda.synchronize()
         return sampled_points
 
+    def sample_3d_model_with_texture_gpu(self, vertices, polygons):
+        '''
+        Simulate lidar sensor measurement on a 3d model
+        :param  vertices: np.array with x,y,z as columns (shape= n x 3)
+                polygons: np.array with vertex indices for each polygon (shape= p x 3),
+                          assumes 3-point-polygons
+        :return: Measured vertices (shape= m x 3). returns (0,0,0) in place of each invalid ray.
+        '''
+        ray_origin, ray_directions = self.create_rays(vertices)
+        sampled_points = np.zeros((len(ray_directions), 3))
+        barycentric_coordinates = np.zeros((len(ray_directions), 4))
+        ray_intersection_gpu[ceil(len(ray_directions) / 256), 256](ray_origin,
+                                                                   ray_directions,
+                                                                   vertices,
+                                                                   polygons,
+                                                                   sampled_points,
+                                                                   barycentric_coordinates)
+        cuda.synchronize()
+        return sampled_points, barycentric_coordinates
+
 
 ########################################################################################################################
 
@@ -136,6 +156,23 @@ def sample_usage_gpu():
     print(point_cloud)
     print(len(point_cloud))
     print(np.sum(point_cloud[:, 2]))
+
+    import pptk
+    v = pptk.viewer(point_cloud[np.any(point_cloud != 0)])
+    v.set(point_size=.003)
+
+
+def sample_usage_with_texture_gpu():
+    from data_loaders.load_3d_models import load_Porsche911
+    from utilities.geometry_calculations import rotate_point_cloud
+
+    vertices, polygons = load_Porsche911()
+    vertices = rotate_point_cloud(vertices, -.5)
+    point_cloud, barycentric_coordinates = Lidar(delta_azimuth=2 * np.pi / 3000,
+                                                 delta_elevation=np.pi / 800,
+                                                 position=(0, -10, 1)).sample_3d_model_with_texture_gpu(vertices,
+                                                                                                        polygons)
+    print(barycentric_coordinates)
 
     import pptk
     v = pptk.viewer(point_cloud[np.any(point_cloud != 0)])
