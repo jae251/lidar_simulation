@@ -4,10 +4,10 @@ from math import ceil
 
 try:
     from .utilities.visualization import visualize_3d
-    from .utilities.ray_casting import ray_intersection, ray_intersection_gpu
+    from .utilities.ray_casting import ray_intersection, ray_intersection_gpu, ray_intersection_uv_gpu
 except ImportError:
     from utilities.visualization import visualize_3d
-    from utilities.ray_casting import ray_intersection, ray_intersection_gpu
+    from utilities.ray_casting import ray_intersection, ray_intersection_gpu, ray_intersection_uv_gpu
 
 
 class Lidar:
@@ -108,6 +108,28 @@ class Lidar:
         cuda.synchronize()
         return sampled_points
 
+    def sample_3d_model_with_texture_gpu(self, vertices, polygons, uv_coordinates, uv_coordinate_indices):
+        '''
+        Simulate lidar sensor measurement on a 3d model
+        :param  vertices: np.array with x,y,z as columns (shape= n x 3)
+                polygons: np.array with vertex indices for each polygon (shape= p x 3),
+                          assumes 3-point-polygons
+        :return: Measured vertices (shape= m x 3). returns (0,0,0) in place of each invalid ray.
+        '''
+        ray_origin, ray_directions = self.create_rays(vertices)
+        sampled_points = np.zeros((len(ray_directions), 3))
+        ray_hit_uv = np.zeros((len(ray_directions), 2))
+        ray_intersection_uv_gpu[ceil(len(ray_directions) / 256), 256](ray_origin,
+                                                                      ray_directions,
+                                                                      vertices,
+                                                                      polygons,
+                                                                      uv_coordinates,
+                                                                      uv_coordinate_indices,
+                                                                      sampled_points,
+                                                                      ray_hit_uv)
+        cuda.synchronize()
+        return sampled_points, ray_hit_uv
+
 
 ########################################################################################################################
 
@@ -125,10 +147,11 @@ def sample_usage():
 
 
 def sample_usage_gpu():
-    from data_loaders.load_3d_models import load_Porsche911
+    from data_loaders.load_3d_models import load_obj_file
     from utilities.geometry_calculations import rotate_point_cloud
+    import os
 
-    vertices, polygons = load_Porsche911()
+    vertices, polygons = load_obj_file(os.path.expanduser("~/Downloads/3d models/Porsche_911_GT2.obj"))
     vertices = rotate_point_cloud(vertices, -.5)
     point_cloud = Lidar(delta_azimuth=2 * np.pi / 3000,
                         delta_elevation=np.pi / 800,
@@ -142,5 +165,28 @@ def sample_usage_gpu():
     v.set(point_size=.003)
 
 
+def sample_usage_with_texture_gpu():
+    from data_loaders.load_3d_models import load_obj_file
+    from utilities.geometry_calculations import rotate_point_cloud
+    import os
+
+    obj_file = os.path.expanduser("~/Downloads/3d models/Porsche_911_GT2.obj")
+    vertices, polygons, uv_coordinates, uv_coordinate_indices = load_obj_file(obj_file, texture=True)
+    vertices = rotate_point_cloud(vertices, -.5)
+    point_cloud, ray_hit_uv = \
+        Lidar(delta_azimuth=2 * np.pi / 3000,
+              delta_elevation=np.pi / 800,
+              position=(0, -10, 1)).sample_3d_model_with_texture_gpu(vertices,
+                                                                     polygons,
+                                                                     uv_coordinates,
+                                                                     uv_coordinate_indices)
+    print(len(ray_hit_uv[np.any(ray_hit_uv != 0, axis=1)]))
+    print(len(point_cloud[np.any(point_cloud != 0, axis=1)]))
+
+    import pptk
+    v = pptk.viewer(point_cloud[np.any(point_cloud != 0, axis=1)])
+    v.set(point_size=.003)
+
+
 if __name__ == "__main__":
-    sample_usage_gpu()
+    sample_usage_with_texture_gpu()
