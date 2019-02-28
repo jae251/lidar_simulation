@@ -119,7 +119,6 @@ class Lidar:
         ray_origin, ray_directions = self.create_rays(vertices)
         sampled_points = np.zeros((len(ray_directions), 3))
         ray_hit_uv = np.zeros((len(ray_directions), 2))
-        barycentric_coordinates = np.zeros((len(ray_directions), 4))
         ray_intersection_uv_gpu[ceil(len(ray_directions) / 256), 256](ray_origin,
                                                                       ray_directions,
                                                                       vertices,
@@ -129,7 +128,7 @@ class Lidar:
                                                                       sampled_points,
                                                                       ray_hit_uv)
         cuda.synchronize()
-        return sampled_points, barycentric_coordinates
+        return sampled_points, ray_hit_uv
 
 
 ########################################################################################################################
@@ -148,10 +147,11 @@ def sample_usage():
 
 
 def sample_usage_gpu():
-    from data_loaders.load_3d_models import load_Porsche911
+    from data_loaders.load_3d_models import load_obj_file
     from utilities.geometry_calculations import rotate_point_cloud
+    import os
 
-    vertices, polygons = load_Porsche911()
+    vertices, polygons = load_obj_file(os.path.expanduser("~/Downloads/3d models/Porsche_911_GT2.obj"))
     vertices = rotate_point_cloud(vertices, -.5)
     point_cloud = Lidar(delta_azimuth=2 * np.pi / 3000,
                         delta_elevation=np.pi / 800,
@@ -170,22 +170,23 @@ def sample_usage_with_texture_gpu():
     from utilities.geometry_calculations import rotate_point_cloud
     import os
 
-    obj_file = os.path.expanduser("~/Downloads/3d_models/Porsche_911_GT2.obj")
+    obj_file = os.path.expanduser("~/Downloads/3d models/Porsche_911_GT2.obj")
     vertices, polygons, uv_coordinates, uv_coordinate_indices = load_obj_file(obj_file, texture=True)
     vertices = rotate_point_cloud(vertices, -.5)
-    point_cloud, barycentric_coordinates = \
+    point_cloud, ray_hit_uv = \
         Lidar(delta_azimuth=2 * np.pi / 3000,
               delta_elevation=np.pi / 800,
               position=(0, -10, 1)).sample_3d_model_with_texture_gpu(vertices,
                                                                      polygons,
                                                                      uv_coordinates,
                                                                      uv_coordinate_indices)
-    print(barycentric_coordinates)
+    print(len(ray_hit_uv[np.any(ray_hit_uv != 0, axis=1)]))
+    print(len(point_cloud[np.any(point_cloud != 0, axis=1)]))
 
     import pptk
-    v = pptk.viewer(point_cloud[np.any(point_cloud != 0)])
+    v = pptk.viewer(point_cloud[np.any(point_cloud != 0, axis=1)])
     v.set(point_size=.003)
 
 
 if __name__ == "__main__":
-    sample_usage_gpu()
+    sample_usage_with_texture_gpu()
