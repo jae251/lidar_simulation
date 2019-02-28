@@ -26,91 +26,115 @@ def ray_intersection_uv_gpu(ray_origin, ray_direction, vertices, polygons, uv_co
     i = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
     if i < len(ray_direction):
         # allocate memory for intermediate results
+        v1 = cuda.local.array(3, float64)
+        v2 = cuda.local.array(3, float64)
+        normal = cuda.local.array(3, float64)
         ray_hit = cuda.local.array(3, float64)
+        p = cuda.local.array(3, float64)
+        tmp = cuda.local.array(3, float64)
         closest_ray_hit = cuda.local.array(3, float64)
-        closest_ray_hit[0] = 0
-        closest_ray_hit[1] = 0
-        closest_ray_hit[2] = 0
-        barycentric_coordinates = cuda.local.array(4, float64)
-        barycentric_coordinates[0] = 0
-        barycentric_coordinates[1] = 0
-        barycentric_coordinates[2] = 0
-        barycentric_coordinates[3] = 0
+        hit_polygon = len(polygons)  # initialize with impossible index
+        barycentric_coordinates = cuda.local.array(3, float64)
         closest_hit_distance = inf
-        hit = False
+        local_ray_direction = ray_direction[i]
 
         # check intersection of one ray with every polygon
-        for n in range(len(polygons)):
+        for n in range(hit_polygon):
             pos = vertices[polygons[n, 0]]
 
             # calculate vectors p1->p2 and p1->p3
-            v1 = subtract(vertices[polygons[n, 1]], pos)
-            v2 = subtract(vertices[polygons[n, 2]], pos)
+            v1_ = vertices[polygons[n, 1]]
+            v2_ = vertices[polygons[n, 2]]
 
-            normal = cross(v1, v2)
-            ray_plane_distance = dot(ray_direction, normal)
+            v1[0] = v1_[0] - pos[0]
+            v1[1] = v1_[1] - pos[1]
+            v1[2] = v1_[2] - pos[2]
+            v2[0] = v2_[0] - pos[0]
+            v2[1] = v2_[1] - pos[1]
+            v2[2] = v2_[2] - pos[2]
+
+            normal = cross(normal, v1, v2)
+            ray_plane_distance = local_ray_direction[0] * normal[0] + \
+                                 local_ray_direction[1] * normal[1] + \
+                                 local_ray_direction[2] * normal[2]
 
             if ray_plane_distance == 0:  # protection against zero division, otherwise kernels fail silently
                 continue
 
-            ray_hit_distance = dot(subtract(pos, ray_origin), normal) / ray_plane_distance
+            ray_hit_distance = ((pos[0] - ray_origin[0]) * normal[0] +
+                                (pos[1] - ray_origin[1]) * normal[1] +
+                                (pos[2] - ray_origin[2]) * normal[2]) / ray_plane_distance
 
-            ray_hit[0] = ray_direction[i, 0] * ray_hit_distance + ray_origin[0]
-            ray_hit[1] = ray_direction[i, 1] * ray_hit_distance + ray_origin[1]
-            ray_hit[2] = ray_direction[i, 2] * ray_hit_distance + ray_origin[2]
+            ray_hit[0] = local_ray_direction[0] * ray_hit_distance + ray_origin[0]
+            ray_hit[1] = local_ray_direction[1] * ray_hit_distance + ray_origin[1]
+            ray_hit[2] = local_ray_direction[2] * ray_hit_distance + ray_origin[2]
 
-            # calculate barycentric coordinates of ray hit with respect to current poylgon
-            # barycentric coordinates are the relation of the area of the sub triangle of polygon edge with a point
-            # to the total polygon area
-            area_polygon = .5 * norm(normal)
-            p = subtract(ray_hit, pos)
-            area1 = .5 * norm(cross(v1, p))
-            area2 = .5 * norm(cross(v2, p))
-            area3 = .5 * norm(cross(subtract(v2, v1), subtract(p, v1)))
+            p[0] = ray_hit[0] - pos[0]
+            p[1] = ray_hit[1] - pos[1]
+            p[2] = ray_hit[2] - pos[2]
 
-            # a point is inside the polygon if all 3 areas of ABP, ACP and BCP add up to area of ABC
-            # check for equality considering floating point error
-            if abs(area1 + area2 + area3 - area_polygon) < .0001 * area_polygon:
+            inside_polygon = (v1[1] * normal[2] - v1[2] * normal[1]) * p[0] + \
+                             (v1[2] * normal[0] - v1[0] * normal[2]) * p[1] + \
+                             (v1[0] * normal[1] - v1[1] * normal[0]) * p[2] <= 0
+            inside_polygon *= (-v2[1] * normal[2] + v2[2] * normal[1]) * p[0] + \
+                              (-v2[2] * normal[0] + v2[0] * normal[2]) * p[1] + \
+                              (-v2[0] * normal[1] + v2[1] * normal[0]) * p[2] <= 0
+            inside_polygon *= ((v2[1] - v1[1]) * normal[2] - (v2[2] - v1[2]) * normal[1]) * (p[0] - v1[0]) + \
+                              ((v2[2] - v1[2]) * normal[0] - (v2[0] - v1[0]) * normal[2]) * (p[1] - v1[1]) + \
+                              ((v2[0] - v1[0]) * normal[1] - (v2[1] - v1[1]) * normal[0]) * (p[2] - v1[2]) <= 0
+
+            if inside_polygon:
                 abs_ray_hit_distance = abs(ray_hit_distance)
                 # the hit closest to ray source is the only unoccluded hit
                 if abs_ray_hit_distance < closest_hit_distance:
-                    # storing temporary results in local thread memory
-                    barycentric_coordinates[0] = n
-                    barycentric_coordinates[1] = area1 / area_polygon
-                    barycentric_coordinates[2] = area2 / area_polygon
-                    barycentric_coordinates[3] = area3 / area_polygon
+                    # calculate barycentric coordinates of ray hit with respect to current poylgon
+                    # barycentric coordinates are the relation of the area of the sub triangle of polygon edge
+                    # with a point to the total polygon area
+                    area_polygon = norm(normal)
+                    area1 = norm(cross(tmp, v1, p))
+                    area2 = norm(cross(tmp, v2, p))
+                    area3 = norm(cross(tmp, subtract(v2, v2, v1), subtract(p, p, v1)))  # have to give result array to
+                    # device function, the values in v2 and p are not used anymore so they can be used for temporary
+                    # storage storing temporary results in local thread memory
+                    hit_polygon = n
+                    barycentric_coordinates[0] = area1 / area_polygon
+                    barycentric_coordinates[1] = area2 / area_polygon
+                    barycentric_coordinates[2] = area3 / area_polygon
                     closest_hit_distance = abs_ray_hit_distance
                     closest_ray_hit[0] = ray_hit[0]
                     closest_ray_hit[1] = ray_hit[1]
                     closest_ray_hit[2] = ray_hit[2]
-                    hit = True
-        if hit:
+
+        if closest_hit_distance != inf:
             # calculate uv coordinates of ray hit
             # first find uv coordinates of polygon vertex points
-            hit_uv_coordinate_indices = uv_coordinate_indices[barycentric_coordinates[0]]
+            hit_uv_coordinate_indices = uv_coordinate_indices[hit_polygon]
             p1 = uv_coordinates[hit_uv_coordinate_indices[0]]
             p2 = uv_coordinates[hit_uv_coordinate_indices[1]]
             p3 = uv_coordinates[hit_uv_coordinate_indices[2]]
 
+            # transfer results from thread memory to main GPU memory
+            # if no hit was found this remains 0 on all entries
+
             # use barycentric coordinates of ray hit to calculate uv
-            ray_hit_uv[i, 0] = barycentric_coordinates[1] * p1[0] + \
-                               barycentric_coordinates[2] * p2[0] + \
-                               barycentric_coordinates[3] * p3[0]
-            ray_hit_uv[i, 1] = barycentric_coordinates[1] * p1[1] + \
-                               barycentric_coordinates[2] * p2[1] + \
-                               barycentric_coordinates[3] * p3[1]
-        # transfer results from thread memory to main GPU memory
-        # if no hit was found this remains 0 on all entries
-        point_cloud[i] = closest_ray_hit
+            ray_hit_uv[i, 0] = barycentric_coordinates[0] * p1[0] + \
+                               barycentric_coordinates[1] * p2[0] + \
+                               barycentric_coordinates[2] * p3[0]
+            ray_hit_uv[i, 1] = barycentric_coordinates[0] * p1[1] + \
+                               barycentric_coordinates[1] * p2[1] + \
+                               barycentric_coordinates[2] * p3[1]
+
+            point_cloud[i, 0] = closest_ray_hit[0]
+            point_cloud[i, 1] = closest_ray_hit[1]
+            point_cloud[i, 2] = closest_ray_hit[2]
 
 
 @cuda.jit(device=True)
-def cross(v1, v2):
-    cv = cuda.local.array(3, float64)
-    cv[0] = v1[1] * v2[2] - v1[2] * v2[1]
-    cv[1] = v1[2] * v2[0] - v1[0] * v2[2]
-    cv[2] = v1[0] * v2[1] - v1[1] * v2[0]
-    return cv
+def cross(result, v1, v2):
+    result[0] = v1[1] * v2[2] - v1[2] * v2[1]
+    result[1] = v1[2] * v2[0] - v1[0] * v2[2]
+    result[2] = v1[0] * v2[1] - v1[1] * v2[0]
+    return result
 
 
 @cuda.jit(device=True)
@@ -124,12 +148,11 @@ def norm(v):
 
 
 @cuda.jit(device=True)
-def subtract(v1, v2):
-    s = cuda.local.array(3, float64)
-    s[0] = v1[0] - v2[0]
-    s[0] = v1[1] - v2[1]
-    s[0] = v1[2] - v2[2]
-    return s
+def subtract(result, v1, v2):
+    result[0] = v1[0] - v2[0]
+    result[1] = v1[1] - v2[1]
+    result[2] = v1[2] - v2[2]
+    return result
 
 
 @cuda.jit
@@ -183,7 +206,7 @@ def ray_intersection_gpu(ray_origin, ray_direction, vertices, polygons, point_cl
         inside_polygon *= ((v2[1] - v1[1]) * normal[2] - (v2[2] - v1[2]) * normal[1]) * (ray_hit[0] - pos[0] - v1[0]) + \
                           ((v2[2] - v1[2]) * normal[0] - (v2[0] - v1[0]) * normal[2]) * (ray_hit[1] - pos[1] - v1[1]) + \
                           ((v2[0] - v1[0]) * normal[1] - (v2[1] - v1[1]) * normal[0]) * (
-                                  ray_hit[2] - pos[2] - v1[2]) <= 0
+                                      ray_hit[2] - pos[2] - v1[2]) <= 0
 
         if inside_polygon:
             abs_ray_hit_distance = abs(ray_hit_distance)
