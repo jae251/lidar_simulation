@@ -11,52 +11,83 @@ except ImportError:
 @cuda.jit
 def ray_intersection_barycentric_gpu(ray_origin, ray_direction, vertices, polygons, point_cloud,
                                      barycentric_coordinates):
+    '''
+    Ray tracing GPU kernel
+    :param ray_origin: coordinate of ray origin, e.g. (0,0,0)
+    :param ray_direction: an array of 3d unit vectors indicating the ray direction, shape=(r,3)
+    :param vertices: array of vertices of 3d object, shape=(v,3)
+    :param polygons: array of vertex indices which form a triangular polygon, shape=(p,3)
+    :param point_cloud: array in which the ray hits will be stored, shape=(r,3). Entries (0,0,0) indicate a non-hit
+    :param barycentric_coordinates: coordinates of the ray hit inside the polygon, shape=(r,4). First entry
+            contains polygon index, next 3 contain barycentric coordinates: Let A, B, C be the points of n-th polygon
+            A = vertices[polygon[i,0]], A = vertices[polygon[i,1]], C = vertices[polygon[i,2]],
+            and let barycentric_coordinates[i]=n,b1,b2,b3. Let P be ray hit.
+            Then b1=area(ABP)/area(ABC), b2=area(ACP)/area(ABC), b3=area(BCP)/area(ABC)
+    :return: GPU kernel cannot return a result, point_cloud and barycentric_coordinates contain the computed results
+    '''
     i = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
-    ray_hit = cuda.local.array(3, float64)
-    closest_ray_hit = cuda.local.array(3, float64)
-    closest_ray_hit[0] = 0
-    closest_ray_hit[1] = 0
-    closest_ray_hit[2] = 0
-    tmp_barycentric_coordinates = cuda.local.array(4, float64)
-    closest_hit_distance = inf
-    for n in range(len(polygons)):
-        pos = vertices[polygons[n, 0]]
-        v1 = subtract(vertices[polygons[n, 1]], pos)
-        v2 = subtract(vertices[polygons[n, 2]], pos)
+    if i < len(ray_direction):
+        # allocate memory for intermediate results
+        ray_hit = cuda.local.array(3, float64)
+        closest_ray_hit = cuda.local.array(3, float64)
+        closest_ray_hit[0] = 0
+        closest_ray_hit[1] = 0
+        closest_ray_hit[2] = 0
+        tmp_barycentric_coordinates = cuda.local.array(4, float64)
+        tmp_barycentric_coordinates[0] = 0
+        tmp_barycentric_coordinates[1] = 0
+        tmp_barycentric_coordinates[2] = 0
+        tmp_barycentric_coordinates[3] = 0
+        closest_hit_distance = inf
 
-        normal = cross(v1, v2)
-        ray_plane_distance = dot(ray_direction, normal)
+        # check intersection of one ray with every polygon
+        for n in range(len(polygons)):
+            pos = vertices[polygons[n, 0]]
 
-        if ray_plane_distance == 0:  # protection against zero division, otherwise kernels fail silently
-            continue
+            # calculate vectors p1->p2 and p1->p3
+            v1 = subtract(vertices[polygons[n, 1]], pos)
+            v2 = subtract(vertices[polygons[n, 2]], pos)
 
-        ray_hit_distance = dot(subtract(pos, ray_origin), normal) / ray_plane_distance
+            normal = cross(v1, v2)
+            ray_plane_distance = dot(ray_direction, normal)
 
-        ray_hit[0] = ray_direction[i, 0] * ray_hit_distance + ray_origin[0]
-        ray_hit[1] = ray_direction[i, 1] * ray_hit_distance + ray_origin[1]
-        ray_hit[2] = ray_direction[i, 2] * ray_hit_distance + ray_origin[2]
+            if ray_plane_distance == 0:  # protection against zero division, otherwise kernels fail silently
+                continue
 
-        area_polygon = .5 * norm(normal)
-        p = subtract(ray_hit, pos)
-        area1 = .5 * norm(cross(v1, p))
-        area2 = .5 * norm(cross(v2, p))
-        area3 = .5 * norm(cross(subtract(v2, v1), subtract(p, v1)))
+            ray_hit_distance = dot(subtract(pos, ray_origin), normal) / ray_plane_distance
 
-        if abs(area1 + area2 + area3 - area_polygon) < .0001 * area_polygon:
-            abs_ray_hit_distance = abs(ray_hit_distance)
-            if abs_ray_hit_distance < closest_hit_distance:
-                tmp_barycentric_coordinates[0] = n
-                tmp_barycentric_coordinates[1] = area1 / area_polygon
-                tmp_barycentric_coordinates[2] = area2 / area_polygon
-                tmp_barycentric_coordinates[3] = area3 / area_polygon
-                closest_hit_distance = abs_ray_hit_distance
-                closest_ray_hit[0] = ray_hit[0]
-                closest_ray_hit[1] = ray_hit[1]
-                closest_ray_hit[2] = ray_hit[2]
-    point_cloud[i, 0] = closest_ray_hit[0]
-    point_cloud[i, 1] = closest_ray_hit[1]
-    point_cloud[i, 2] = closest_ray_hit[2]
-    barycentric_coordinates[i] = tmp_barycentric_coordinates
+            ray_hit[0] = ray_direction[i, 0] * ray_hit_distance + ray_origin[0]
+            ray_hit[1] = ray_direction[i, 1] * ray_hit_distance + ray_origin[1]
+            ray_hit[2] = ray_direction[i, 2] * ray_hit_distance + ray_origin[2]
+
+            # calculate barycentric coordinates of ray hit with respect to current poylgon
+            # barycentric coordinates are the relation of the area of the sub triangle of polygon edge with a point
+            # to the total polygon area
+            area_polygon = .5 * norm(normal)
+            p = subtract(ray_hit, pos)
+            area1 = .5 * norm(cross(v1, p))
+            area2 = .5 * norm(cross(v2, p))
+            area3 = .5 * norm(cross(subtract(v2, v1), subtract(p, v1)))
+
+            # a point is inside the polygon if all 3 areas of ABP, ACP and BCP add up to area of ABC
+            # check for equality considering floating point error
+            if abs(area1 + area2 + area3 - area_polygon) < .0001 * area_polygon:
+                abs_ray_hit_distance = abs(ray_hit_distance)
+                # the hit closest to ray source is the only unoccluded hit
+                if abs_ray_hit_distance < closest_hit_distance:
+                    # storing temporary results in local thread memory
+                    tmp_barycentric_coordinates[0] = n
+                    tmp_barycentric_coordinates[1] = area1 / area_polygon
+                    tmp_barycentric_coordinates[2] = area2 / area_polygon
+                    tmp_barycentric_coordinates[3] = area3 / area_polygon
+                    closest_hit_distance = abs_ray_hit_distance
+                    closest_ray_hit[0] = ray_hit[0]
+                    closest_ray_hit[1] = ray_hit[1]
+                    closest_ray_hit[2] = ray_hit[2]
+        # transfer results from thread memory to main GPU memory
+        # if no hit was found this remains 0 on all entries
+        point_cloud[i] = closest_ray_hit
+        barycentric_coordinates[i] = tmp_barycentric_coordinates
 
 
 @cuda.jit(device=True)
