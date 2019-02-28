@@ -2,10 +2,10 @@ import numpy as np
 import os
 
 
-def load_obj_file(filename):
+def load_obj_file(filename, texture=False):
     filename = os.path.expanduser(filename)
     with open(filename) as f:
-        v, p = [], []
+        v, p, uv = [], [], []
         for line in f:
             if line[:2] == "v ":
                 q = line.split()
@@ -14,11 +14,20 @@ def load_obj_file(filename):
             elif line[0] == "f":
                 q = [[int(i) for i in l.split("/")] for l in line.split()[1:]]
                 p.append(q)
+            elif line[:2] == "vt":
+                q = line.split()
+                uv.append((float(q[1]), float(q[2])))
         vertices = np.array(v)
         z_min = np.min(vertices[:, 2])
         vertices[:, 2] -= z_min
-        polygons = np.array(p)[:, :, 0] - 1
-    return vertices, polygons
+        p = np.array(p) - 1
+        polygons = p[:, :, 0]
+    if texture:
+        uv_coordinates = np.array(uv)
+        uv_coordinate_indices = p[:, :, 1]
+        return vertices, polygons, uv_coordinates, uv_coordinate_indices
+    else:
+        return vertices, polygons
 
 
 def load_Porsche911():
