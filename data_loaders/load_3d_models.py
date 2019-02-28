@@ -21,10 +21,10 @@ def load_obj_file(filename, texture=False):
         z_min = np.min(vertices[:, 2])
         vertices[:, 2] -= z_min
         p = np.array(p) - 1
-        polygons = p[:, :, 0]
+        polygons = p[:, :, 0].copy()
     if texture:
         uv_coordinates = np.array(uv)
-        uv_coordinate_indices = p[:, :, 1]
+        uv_coordinate_indices = p[:, :, 1].copy()
         return vertices, polygons, uv_coordinates, uv_coordinate_indices
     else:
         return vertices, polygons
