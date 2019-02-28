@@ -9,20 +9,18 @@ except ImportError:
 
 
 @cuda.jit
-def ray_intersection_barycentric_gpu(ray_origin, ray_direction, vertices, polygons, point_cloud,
-                                     barycentric_coordinates):
+def ray_intersection_uv_gpu(ray_origin, ray_direction, vertices, polygons, uv_coordinates, uv_coordinate_indices,
+                            point_cloud, ray_hit_uv):
     '''
     Ray tracing GPU kernel
     :param ray_origin: coordinate of ray origin, e.g. (0,0,0)
     :param ray_direction: an array of 3d unit vectors indicating the ray direction, shape=(r,3)
     :param vertices: array of vertices of 3d object, shape=(v,3)
     :param polygons: array of vertex indices which form a triangular polygon, shape=(p,3)
-    :param point_cloud: array in which the ray hits will be stored, shape=(r,3). Entries (0,0,0) indicate a non-hit
-    :param barycentric_coordinates: coordinates of the ray hit inside the polygon, shape=(r,4). First entry
-            contains polygon index, next 3 contain barycentric coordinates: Let A, B, C be the points of n-th polygon
-            A = vertices[polygon[i,0]], A = vertices[polygon[i,1]], C = vertices[polygon[i,2]],
-            and let barycentric_coordinates[i]=n,b1,b2,b3. Let P be ray hit.
-            Then b1=area(ABP)/area(ABC), b2=area(ACP)/area(ABC), b3=area(BCP)/area(ABC)
+    :param uv_coordinates: array of uv coordinates of 3d object vertices, shape=(t,2)
+    :param uv_coordinate_indices: array of indices pointing to uv coordinates for each polygon, shape=(p,3)
+    :param point_cloud: result array in which the ray hits will be stored, shape=(r,3). Entries (0,0,0) indicate a non-hit
+    :param ray_hit_uv: result array of uv coordinates of ray hits, shape=(r,2)
     :return: GPU kernel cannot return a result, point_cloud and barycentric_coordinates contain the computed results
     '''
     i = cuda.threadIdx.x + cuda.blockIdx.x * cuda.blockDim.x
@@ -33,12 +31,13 @@ def ray_intersection_barycentric_gpu(ray_origin, ray_direction, vertices, polygo
         closest_ray_hit[0] = 0
         closest_ray_hit[1] = 0
         closest_ray_hit[2] = 0
-        tmp_barycentric_coordinates = cuda.local.array(4, float64)
-        tmp_barycentric_coordinates[0] = 0
-        tmp_barycentric_coordinates[1] = 0
-        tmp_barycentric_coordinates[2] = 0
-        tmp_barycentric_coordinates[3] = 0
+        barycentric_coordinates = cuda.local.array(4, float64)
+        barycentric_coordinates[0] = 0
+        barycentric_coordinates[1] = 0
+        barycentric_coordinates[2] = 0
+        barycentric_coordinates[3] = 0
         closest_hit_distance = inf
+        hit = False
 
         # check intersection of one ray with every polygon
         for n in range(len(polygons)):
@@ -76,18 +75,33 @@ def ray_intersection_barycentric_gpu(ray_origin, ray_direction, vertices, polygo
                 # the hit closest to ray source is the only unoccluded hit
                 if abs_ray_hit_distance < closest_hit_distance:
                     # storing temporary results in local thread memory
-                    tmp_barycentric_coordinates[0] = n
-                    tmp_barycentric_coordinates[1] = area1 / area_polygon
-                    tmp_barycentric_coordinates[2] = area2 / area_polygon
-                    tmp_barycentric_coordinates[3] = area3 / area_polygon
+                    barycentric_coordinates[0] = n
+                    barycentric_coordinates[1] = area1 / area_polygon
+                    barycentric_coordinates[2] = area2 / area_polygon
+                    barycentric_coordinates[3] = area3 / area_polygon
                     closest_hit_distance = abs_ray_hit_distance
                     closest_ray_hit[0] = ray_hit[0]
                     closest_ray_hit[1] = ray_hit[1]
                     closest_ray_hit[2] = ray_hit[2]
+                    hit = True
+        if hit:
+            # calculate uv coordinates of ray hit
+            # first find uv coordinates of polygon vertex points
+            hit_uv_coordinate_indices = uv_coordinate_indices[barycentric_coordinates[0]]
+            p1 = uv_coordinates[hit_uv_coordinate_indices[0]]
+            p2 = uv_coordinates[hit_uv_coordinate_indices[1]]
+            p3 = uv_coordinates[hit_uv_coordinate_indices[2]]
+
+            # use barycentric coordinates of ray hit to calculate uv
+            ray_hit_uv[i, 0] = barycentric_coordinates[1] * p1[0] + \
+                               barycentric_coordinates[2] * p2[0] + \
+                               barycentric_coordinates[3] * p3[0]
+            ray_hit_uv[i, 1] = barycentric_coordinates[1] * p1[1] + \
+                               barycentric_coordinates[2] * p2[1] + \
+                               barycentric_coordinates[3] * p3[1]
         # transfer results from thread memory to main GPU memory
         # if no hit was found this remains 0 on all entries
         point_cloud[i] = closest_ray_hit
-        barycentric_coordinates[i] = tmp_barycentric_coordinates
 
 
 @cuda.jit(device=True)
