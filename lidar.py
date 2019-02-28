@@ -4,10 +4,10 @@ from math import ceil
 
 try:
     from .utilities.visualization import visualize_3d
-    from .utilities.ray_casting import ray_intersection, ray_intersection_gpu
+    from .utilities.ray_casting import ray_intersection, ray_intersection_gpu, ray_intersection_uv_gpu
 except ImportError:
     from utilities.visualization import visualize_3d
-    from utilities.ray_casting import ray_intersection, ray_intersection_gpu
+    from utilities.ray_casting import ray_intersection, ray_intersection_gpu, ray_intersection_uv_gpu
 
 
 class Lidar:
@@ -108,7 +108,7 @@ class Lidar:
         cuda.synchronize()
         return sampled_points
 
-    def sample_3d_model_with_texture_gpu(self, vertices, polygons):
+    def sample_3d_model_with_texture_gpu(self, vertices, polygons, uv_coordinates, uv_coordinate_indices):
         '''
         Simulate lidar sensor measurement on a 3d model
         :param  vertices: np.array with x,y,z as columns (shape= n x 3)
@@ -118,13 +118,16 @@ class Lidar:
         '''
         ray_origin, ray_directions = self.create_rays(vertices)
         sampled_points = np.zeros((len(ray_directions), 3))
+        ray_hit_uv = np.zeros((len(ray_directions), 2))
         barycentric_coordinates = np.zeros((len(ray_directions), 4))
-        ray_intersection_gpu[ceil(len(ray_directions) / 256), 256](ray_origin,
-                                                                   ray_directions,
-                                                                   vertices,
-                                                                   polygons,
-                                                                   sampled_points,
-                                                                   barycentric_coordinates)
+        ray_intersection_uv_gpu[ceil(len(ray_directions) / 256), 256](ray_origin,
+                                                                      ray_directions,
+                                                                      vertices,
+                                                                      polygons,
+                                                                      uv_coordinates,
+                                                                      uv_coordinate_indices,
+                                                                      sampled_points,
+                                                                      ray_hit_uv)
         cuda.synchronize()
         return sampled_points, barycentric_coordinates
 
@@ -163,15 +166,20 @@ def sample_usage_gpu():
 
 
 def sample_usage_with_texture_gpu():
-    from data_loaders.load_3d_models import load_Porsche911
+    from data_loaders.load_3d_models import load_obj_file
     from utilities.geometry_calculations import rotate_point_cloud
+    import os
 
-    vertices, polygons = load_Porsche911()
+    obj_file = os.path.expanduser("~/Downloads/3d_models/Porsche_911_GT2.obj")
+    vertices, polygons, uv_coordinates, uv_coordinate_indices = load_obj_file(obj_file, texture=True)
     vertices = rotate_point_cloud(vertices, -.5)
-    point_cloud, barycentric_coordinates = Lidar(delta_azimuth=2 * np.pi / 3000,
-                                                 delta_elevation=np.pi / 800,
-                                                 position=(0, -10, 1)).sample_3d_model_with_texture_gpu(vertices,
-                                                                                                        polygons)
+    point_cloud, barycentric_coordinates = \
+        Lidar(delta_azimuth=2 * np.pi / 3000,
+              delta_elevation=np.pi / 800,
+              position=(0, -10, 1)).sample_3d_model_with_texture_gpu(vertices,
+                                                                     polygons,
+                                                                     uv_coordinates,
+                                                                     uv_coordinate_indices)
     print(barycentric_coordinates)
 
     import pptk
