@@ -61,7 +61,8 @@ class BoundingBox2D:
         self.position += translation
 
     def copy(self):
-        return BoundingBox2D(self.points, label=self.label, id=self.id, angle=self.angle, position=self.position)
+        return BoundingBox2D(self.points, label=self.label, id=self.id, angle=self.angle, position=self.position,
+                             height=self.height)
 
     def __str__(self):
         return "2D Bounding Box:\nid: {}\nlabel: {}\npoints:\n{}".format(self.id, self.label, self.points)
