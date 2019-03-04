@@ -119,6 +119,7 @@ class Lidar:
         ray_origin, ray_directions = self.create_rays(vertices)
         sampled_points = np.zeros((len(ray_directions), 3))
         ray_hit_uv = np.zeros((len(ray_directions), 2))
+        cuda.synchronize()  # this seems to prevent some random cuda context corruptions
         ray_intersection_uv_gpu[ceil(len(ray_directions) / 256), 256](ray_origin,
                                                                       ray_directions,
                                                                       vertices,
