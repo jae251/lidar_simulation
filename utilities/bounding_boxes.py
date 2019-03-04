@@ -68,15 +68,17 @@ class BoundingBox2D:
         return "2D Bounding Box:\nid: {}\nlabel: {}\npoints:\n{}".format(self.id, self.label, self.points)
 
     def to_numpy(self):
-        return np.array((  # self.id,
-            self.label,
-            self.points,
-            self.position,
-            self.angle), dtype=np.dtype([  # ("id", np.uint8),
-            ("label", "S20"),
-            ("points", (np.float64, (4, 2))),
-            ("position", (np.float64, 3)),
-            ("angle", np.float64)]))
+        return np.array((self.id,
+                         self.label,
+                         # self.points,
+                         self.position,
+                         (*self.get_size(), self.height),
+                         self.angle), dtype=np.dtype([("id", np.uint16),
+                                                      ("label", "S20"),
+                                                      # ("points", (np.float64, (4, 2))),
+                                                      ("position", (np.float64, 3)),
+                                                      ("size", (np.float64, 3)),
+                                                      ("angle", np.float64)]))
 
 
 ########################################################################################################################
