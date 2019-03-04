@@ -20,7 +20,8 @@ class Scene:
     Lastly, use <build_scene> to create the new model.
     '''
 
-    def __init__(self, spawn_area=Polygon(((-10, -10), (-10, 10), (10, 10), (10, -10)))):
+    def __init__(self, spawn_area=((-10, -10), (-10, 10), (10, 10), (10, -10))):
+        spawn_area = Polygon(spawn_area)
         if spawn_area.is_valid:
             self.spawn_area = spawn_area
         else:
