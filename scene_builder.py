@@ -52,6 +52,7 @@ class Scene:
                 continue
             if any((new_obj.overlaps(obj) for obj in self.scene)):
                 continue
+            new_obj.id = len(self.scene)
             self.scene.append(new_obj)
             return True
         return None
@@ -61,6 +62,7 @@ class Scene:
         obj_blueprint = self.model_boundaries[label]
         new_obj = obj_blueprint.copy()
         new_obj.affine_transform(position, angle)
+        new_obj.id = len(self.scene)
         self.scene.append(new_obj)
 
     def build_scene(self):
