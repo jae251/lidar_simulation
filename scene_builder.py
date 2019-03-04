@@ -36,14 +36,14 @@ class Scene:
 
     def place_object_randomly(self, label, max_nr_tries=200):
         obj_blueprint = self.model_boundaries[label]
-        new_obj = obj_blueprint.copy()
         if self.spawn_area.area < obj_blueprint.get_area():
-            return None
+            return
         coords = np.array(self.spawn_area.exterior)
         space_boundaries_min = np.min(coords, axis=0)
         space_boundaries_max = np.max(coords, axis=0)
         space_extent = space_boundaries_max - space_boundaries_min
         for _ in range(max_nr_tries):
+            new_obj = obj_blueprint.copy()
             rnd = np.random.uniform(0, 1, 3)
             position = space_boundaries_min + space_extent * rnd[:2]
             position = np.array((position[0], position[1], 0))
@@ -56,7 +56,6 @@ class Scene:
             new_obj.id = len(self.scene)
             self.scene.append(new_obj)
             return True
-        return None
 
     def place_object(self, label, position, angle):  # angle in radians
         position = np.array(position)
