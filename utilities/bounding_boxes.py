@@ -9,16 +9,21 @@ except ImportError:
 
 
 class BoundingBox2D:
-    def __init__(self, point_array, label=None, id=None, angle=0, position=(0, 0, 0)):
+    def __init__(self, point_array, label=None, id=None, angle=0, position=(0, 0, 0), height=None):
         self.p = Polygon(point_array)
         self.points = point_array
         self.angle = angle
         self.position = np.array(position)
         self.label = label
         self.id = id
+        self.height = height
 
     @classmethod
     def from_point_cloud(cls, point_cloud, angle=0, label=None, id=None):
+        try:
+            height = np.max(point_cloud[:, 2]) - np.min(point_cloud[:, 2])
+        except IndexError:
+            height = None
         pcloud_2d = point_cloud[:, :2]
         rotated_point_cloud = rotate_point_cloud(pcloud_2d, -angle)
         upper_boundary = np.max(rotated_point_cloud, axis=0)
@@ -29,7 +34,7 @@ class BoundingBox2D:
                                 (lower_boundary[0], upper_boundary[1])))
         point_array = rotate_point_cloud(point_array, angle)
         position = np.zeros(3)
-        return cls(point_array, label=label, id=id, angle=angle, position=position)
+        return cls(point_array, label=label, id=id, angle=angle, position=position, height=height)
 
     def get_size(self):
         dim = np.linalg.norm(self.points - np.roll(self.points, 1, axis=0), axis=1)[:2]
