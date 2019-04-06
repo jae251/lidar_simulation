@@ -31,7 +31,10 @@ class Scene:
         self.scene = []
 
     def add_model_to_shelf(self, vertices, polygons, label):
-        self.model_boundaries[label] = BoundingBox2D.from_point_cloud(vertices, label=label)
+        bb = BoundingBox2D.from_point_cloud(vertices, label=label)
+        vertices -= bb.position
+        bb.affine_transform(-bb.position, 0)
+        self.model_boundaries[label] = bb
         self.models[label] = vertices, polygons
 
     def place_object_randomly(self, label, max_nr_tries=200):
