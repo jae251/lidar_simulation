@@ -21,8 +21,10 @@ class BoundingBox2D:
     @classmethod
     def from_point_cloud(cls, point_cloud, angle=0, label=None, id=None):
         try:
-            height = np.max(point_cloud[:, 2]) - np.min(point_cloud[:, 2])
+            lower_z_boundary = np.min(point_cloud[:, 2])
+            height = np.max(point_cloud[:, 2]) - lower_z_boundary
         except IndexError:
+            lower_z_boundary = 0
             height = None
         pcloud_2d = point_cloud[:, :2]
         rotated_point_cloud = rotate_point_cloud(pcloud_2d, -angle)
@@ -33,7 +35,7 @@ class BoundingBox2D:
                                 (lower_boundary[0], lower_boundary[1]),
                                 (lower_boundary[0], upper_boundary[1])))
         point_array = rotate_point_cloud(point_array, angle)
-        position = np.zeros(3)
+        position = np.append((upper_boundary + lower_boundary) * .5, lower_z_boundary)
         return cls(point_array, label=label, id=id, angle=angle, position=position, height=height)
 
     def get_size(self):
